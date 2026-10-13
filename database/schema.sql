@@ -1,0 +1,102 @@
+CREATE DATABASE IF NOT EXISTS bizflow CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+USE bizflow;
+
+CREATE TABLE IF NOT EXISTS users (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  email VARCHAR(190) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role ENUM('admin','manager','staff') NOT NULL DEFAULT 'staff',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  last_login_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS customers (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(160) NOT NULL,
+  email VARCHAR(190) NULL,
+  phone VARCHAR(40) NULL,
+  company VARCHAR(160) NULL,
+  notes TEXT NULL,
+  created_by BIGINT UNSIGNED NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_customers_name(name), INDEX idx_customers_email(email),
+  CONSTRAINT fk_customers_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS products (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  sku VARCHAR(80) NOT NULL UNIQUE,
+  name VARCHAR(160) NOT NULL,
+  description TEXT NULL,
+  price DECIMAL(14,2) NOT NULL DEFAULT 0,
+  stock INT UNSIGNED NOT NULL DEFAULT 0,
+  low_stock_threshold INT UNSIGNED NOT NULL DEFAULT 5,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by BIGINT UNSIGNED NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_products_name(name), INDEX idx_products_stock(stock),
+  CONSTRAINT fk_products_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT chk_products_price CHECK (price >= 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS sales (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  sale_number VARCHAR(40) NOT NULL UNIQUE,
+  customer_id BIGINT UNSIGNED NULL,
+  subtotal DECIMAL(14,2) NOT NULL,
+  total DECIMAL(14,2) NOT NULL,
+  payment_method ENUM('cash','transfer','card','other') NOT NULL DEFAULT 'transfer',
+  status ENUM('completed','voided') NOT NULL DEFAULT 'completed',
+  notes VARCHAR(500) NULL,
+  created_by BIGINT UNSIGNED NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_sales_created(created_at),
+  CONSTRAINT fk_sales_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+  CONSTRAINT fk_sales_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT chk_sales_total CHECK (total >= 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS sale_items (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  sale_id BIGINT UNSIGNED NOT NULL,
+  product_id BIGINT UNSIGNED NOT NULL,
+  product_name VARCHAR(160) NOT NULL,
+  sku VARCHAR(80) NOT NULL,
+  quantity INT UNSIGNED NOT NULL,
+  unit_price DECIMAL(14,2) NOT NULL,
+  line_total DECIMAL(14,2) NOT NULL,
+  CONSTRAINT fk_items_sale FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
+  CONSTRAINT fk_items_product FOREIGN KEY (product_id) REFERENCES products(id),
+  CONSTRAINT chk_items_quantity CHECK (quantity > 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS expenses (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  category VARCHAR(100) NOT NULL,
+  description VARCHAR(255) NOT NULL,
+  amount DECIMAL(14,2) NOT NULL,
+  expense_date DATE NOT NULL,
+  created_by BIGINT UNSIGNED NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_expenses_date(expense_date),
+  CONSTRAINT fk_expenses_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT chk_expenses_amount CHECK (amount > 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NULL,
+  action VARCHAR(100) NOT NULL,
+  entity_type VARCHAR(80) NOT NULL,
+  entity_id VARCHAR(80) NULL,
+  ip_address VARCHAR(45) NULL,
+  metadata JSON NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_audit_created(created_at), INDEX idx_audit_user(user_id),
+  CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
